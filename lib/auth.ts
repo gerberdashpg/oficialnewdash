@@ -33,15 +33,19 @@ export async function createSession(userId: string): Promise<string> {
   const sessionId = crypto.randomUUID()
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days
 
-  await sql`
-    INSERT INTO sessions (id, user_id, expires_at)
-    VALUES (${sessionId}, ${userId}, ${expiresAt.toISOString()})
-  `.catch(() => {
+  try {
+    await sql`
+      INSERT INTO sessions (id, user_id, expires_at)
+      VALUES (${sessionId}, ${userId}, ${expiresAt.toISOString()})
+    `
+  } catch {
     // Sessions table might not exist, use simple cookie-based auth
-  })
+  }
 
   const cookieStore = await cookies()
-  cookieStore.set(SESSION_COOKIE, `${userId}:${sessionId}`, {
+  const cookieValue = `${userId}:${sessionId}`
+  
+  cookieStore.set(SESSION_COOKIE, cookieValue, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",

@@ -21,6 +21,10 @@ async function getClients() {
   return sql`SELECT id, name FROM clients ORDER BY name ASC`
 }
 
+async function getRoles() {
+  return sql`SELECT id, name, color FROM roles ORDER BY is_system DESC, name ASC`
+}
+
 export default async function AdminUsersPage() {
   const session = await getSession()
 
@@ -28,9 +32,10 @@ export default async function AdminUsersPage() {
     redirect("/login")
   }
 
-  const [users, clients] = await Promise.all([
+  const [users, clients, roles] = await Promise.all([
     getUsers(),
     getClients(),
+    getRoles(),
   ])
 
   return (
@@ -44,7 +49,7 @@ export default async function AdminUsersPage() {
 
       <div className="px-4 sm:px-6 pb-6">
         <Card className="bg-[#0D0D12] border-purple-500/20 overflow-hidden">
-          <UsersTable users={users} clients={clients} />
+          <UsersTable users={users} clients={clients} roles={roles} />
         </Card>
       </div>
     </div>

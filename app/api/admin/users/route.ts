@@ -5,7 +5,7 @@ import bcrypt from "bcryptjs"
 
 export async function GET() {
   const session = await getSession()
-  if (!session || session.role !== "ADMIN") {
+  if (!session || (session.role !== "ADMIN" && session.role !== "Administrador")) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
@@ -24,7 +24,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   const session = await getSession()
-  if (!session || session.role !== "ADMIN") {
+  if (!session || (session.role !== "ADMIN" && session.role !== "Administrador")) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
@@ -35,10 +35,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
   }
 
-  // If role is CLIENTE, client_id is required
-  if (role === "CLIENTE" && !client_id) {
-    return NextResponse.json({ error: "Client is required for CLIENTE role" }, { status: 400 })
-  }
+  // If role is not admin, client_id might be needed
+  const isAdminRole = role === "ADMIN" || role === "Administrador"
 
   try {
     // Check if email already exists
@@ -48,8 +46,8 @@ export async function POST(request: Request) {
     }
 
     const password_hash = await bcrypt.hash(password, 10)
-    const userRole = role || "CLIENTE"
-    const userClientId = userRole === "ADMIN" ? null : client_id
+    const userRole = role || "Cliente"
+    const userClientId = isAdminRole ? null : (client_id || null)
     
     const result = await sql`
       INSERT INTO users (client_id, name, email, password_hash, role)

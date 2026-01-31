@@ -5,6 +5,7 @@ import Link from "next/link"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { toast } from "@/components/ui/toast" // Import toast variable
 import {
   Table,
   TableBody,
@@ -63,17 +64,41 @@ interface Client {
   name: string
 }
 
+interface Role {
+  id: string
+  name: string
+  color: string
+}
+
 interface UsersTableProps {
   users: User[]
   clients: Client[]
+  roles: Role[]
 }
 
-const roleColors: Record<string, string> = {
-  ADMIN: "bg-purple-500/20 text-purple-400 border-purple-500/30",
-  CLIENTE: "bg-blue-500/20 text-blue-400 border-blue-500/30",
+// Helper to get role color style from hex
+function getRoleColorStyle(color: string) {
+  return {
+    backgroundColor: `${color}33`,
+    color: color,
+    borderColor: `${color}66`,
+  }
 }
 
-export function UsersTable({ users: initialUsers, clients }: UsersTableProps) {
+// Fallback colors for legacy role names
+const legacyRoleColors: Record<string, { bg: string, text: string, border: string }> = {
+  ADMIN: { bg: "#A855F733", text: "#A855F7", border: "#A855F766" },
+  Administrador: { bg: "#A855F733", text: "#A855F7", border: "#A855F766" },
+  CLIENTE: { bg: "#3B82F633", text: "#3B82F6", border: "#3B82F666" },
+  Cliente: { bg: "#3B82F633", text: "#3B82F6", border: "#3B82F666" },
+}
+
+export function UsersTable({ users: initialUsers, clients, roles }: UsersTableProps) {
+  // Create a map for quick role lookup
+  const roleMap = roles.reduce((acc, role) => {
+    acc[role.name] = role
+    return acc
+  }, {} as Record<string, Role>)
   const [users, setUsers] = useState(initialUsers)
   const [search, setSearch] = useState("")
   const [editUser, setEditUser] = useState<User | null>(null)
@@ -103,24 +128,42 @@ export function UsersTable({ users: initialUsers, clients }: UsersTableProps) {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault()
+    console.log("[v0] handleCreate called with form:", createForm)
     setIsLoading(true)
 
     try {
+      console.log("[v0] Sending POST to /api/admin/users")
       const res = await fetch("/api/admin/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(createForm),
       })
 
+      console.log("[v0] Response status:", res.status)
+      const data = await res.json()
+      console.log("[v0] Response data:", data)
+
       if (res.ok) {
-        const { user: newUser } = await res.json()
+        const { user: newUser } = data
         const client = clients.find(c => c.id === createForm.client_id)
         setUsers([{ ...newUser, client_name: client?.name || null }, ...users])
         setIsCreateOpen(false)
-        setCreateForm({ name: "", email: "", password: "", role: "CLIENTE", client_id: "" })
+        setCreateForm({ name: "", email: "", password: "", role: "Cliente", client_id: "" })
+      } else {
+        console.log("[v0] Error response:", data.error)
+        toast({
+          title: "Erro",
+          description: data.error || "Falha ao criar usuário",
+          variant: "destructive",
+        })
       }
     } catch (error) {
-      console.error("Error creating user:", error)
+      console.error("[v0] Error creating user:", error)
+      toast({
+        title: "Erro",
+        description: "Falha ao criar usuário",
+        variant: "destructive",
+      })
     } finally {
       setIsLoading(false)
     }
@@ -139,22 +182,43 @@ export function UsersTable({ users: initialUsers, clients }: UsersTableProps) {
   const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!editUser) return
+    console.log("[v0] handleSaveEdit called with form:", editForm)
     setIsLoading(true)
 
     try {
+      console.log("[v0] Sending PUT to /api/admin/users/" + editUser.id)
       const res = await fetch(`/api/admin/users/${editUser.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(editForm),
       })
 
+      console.log("[v0] Response status:", res.status)
+      const data = await res.json()
+      console.log("[v0] Response data:", data)
+
       if (res.ok) {
-        const updated = await res.json()
-        setUsers(users.map((u) => (u.id === editUser.id ? { ...u, ...updated } : u)))
+        setUsers(users.map((u) => (u.id === editUser.id ? { ...u, ...data } : u)))
         setEditUser(null)
+        toast({
+          title: "Sucesso",
+          description: "Usuário atualizado com sucesso",
+        })
+      } else {
+        console.log("[v0] Error response:", data.error)
+        toast({
+          title: "Erro",
+          description: data.error || "Falha ao atualizar usuário",
+          variant: "destructive",
+        })
       }
     } catch (error) {
-      console.error("Error updating user:", error)
+      console.error("[v0] Error updating user:", error)
+      toast({
+        title: "Erro",
+        description: "Falha ao atualizar usuário",
+        variant: "destructive",
+      })
     } finally {
       setIsLoading(false)
     }
@@ -239,9 +303,29 @@ export function UsersTable({ users: initialUsers, clients }: UsersTableProps) {
                 </TableCell>
                 <TableCell className="text-zinc-300">{user.email}</TableCell>
                 <TableCell>
-                  <Badge variant="outline" className={roleColors[user.role]}>
-                    {user.role}
-                  </Badge>
+                  {roleMap[user.role] ? (
+                    <Badge 
+                      variant="outline" 
+                      style={getRoleColorStyle(roleMap[user.role].color)}
+                    >
+                      {user.role}
+                    </Badge>
+                  ) : legacyRoleColors[user.role] ? (
+                    <Badge 
+                      variant="outline" 
+                      style={{
+                        backgroundColor: legacyRoleColors[user.role].bg,
+                        color: legacyRoleColors[user.role].text,
+                        borderColor: legacyRoleColors[user.role].border,
+                      }}
+                    >
+                      {user.role}
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="bg-zinc-500/20 text-zinc-400 border-zinc-500/30">
+                      {user.role}
+                    </Badge>
+                  )}
                 </TableCell>
                 <TableCell>
                   {user.client_name ? (
@@ -337,7 +421,7 @@ export function UsersTable({ users: initialUsers, clients }: UsersTableProps) {
               />
             </div>
             <div className="space-y-2">
-              <Label className="text-zinc-300">Tipo</Label>
+              <Label className="text-zinc-300">Role</Label>
               <Select
                 value={editForm.role}
                 onValueChange={(value) => setEditForm({ ...editForm, role: value })}
@@ -346,8 +430,21 @@ export function UsersTable({ users: initialUsers, clients }: UsersTableProps) {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="bg-zinc-900 border-zinc-800">
-                  <SelectItem value="ADMIN" className="text-zinc-300 focus:text-white focus:bg-zinc-800">Admin</SelectItem>
-                  <SelectItem value="CLIENTE" className="text-zinc-300 focus:text-white focus:bg-zinc-800">Cliente</SelectItem>
+                  {roles.map((role) => (
+                    <SelectItem 
+                      key={role.id} 
+                      value={role.name} 
+                      className="text-zinc-300 focus:text-white focus:bg-zinc-800"
+                    >
+                      <div className="flex items-center gap-2">
+                        <div 
+                          className="w-3 h-3 rounded-full" 
+                          style={{ backgroundColor: role.color }} 
+                        />
+                        {role.name}
+                      </div>
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -403,7 +500,7 @@ export function UsersTable({ users: initialUsers, clients }: UsersTableProps) {
               />
             </div>
             <div className="space-y-2">
-              <Label className="text-zinc-300">Tipo</Label>
+              <Label className="text-zinc-300">Role</Label>
               <Select
                 value={createForm.role}
                 onValueChange={(value) => setCreateForm({ ...createForm, role: value })}
@@ -412,12 +509,25 @@ export function UsersTable({ users: initialUsers, clients }: UsersTableProps) {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="bg-zinc-900 border-zinc-800">
-                  <SelectItem value="ADMIN" className="text-zinc-300 focus:text-white focus:bg-zinc-800">Admin</SelectItem>
-                  <SelectItem value="CLIENTE" className="text-zinc-300 focus:text-white focus:bg-zinc-800">Cliente</SelectItem>
+                  {roles.map((role) => (
+                    <SelectItem 
+                      key={role.id} 
+                      value={role.name} 
+                      className="text-zinc-300 focus:text-white focus:bg-zinc-800"
+                    >
+                      <div className="flex items-center gap-2">
+                        <div 
+                          className="w-3 h-3 rounded-full" 
+                          style={{ backgroundColor: role.color }} 
+                        />
+                        {role.name}
+                      </div>
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
-            {createForm.role === "CLIENTE" && (
+            {createForm.role !== "Administrador" && createForm.role !== "ADMIN" && (
               <div className="space-y-2">
                 <Label className="text-zinc-300">Cliente</Label>
                 <Select

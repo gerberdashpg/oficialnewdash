@@ -8,7 +8,7 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getSession()
-  if (!session || session.role !== "ADMIN") {
+  if (!session || (session.role !== "ADMIN" && session.role !== "Administrador")) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
@@ -18,7 +18,7 @@ export async function PUT(
 
   try {
     // Check if email already exists for another user
-    const existing = await sql`SELECT id FROM users WHERE email = ${email} AND id != ${id}`
+    const existing = await sql`SELECT id FROM users WHERE email = ${email} AND id <> ${id}`
     if (existing.length > 0) {
       return NextResponse.json({ error: "Email already in use" }, { status: 400 })
     }
@@ -57,7 +57,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getSession()
-  if (!session || session.role !== "ADMIN") {
+  if (!session || (session.role !== "ADMIN" && session.role !== "Administrador")) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 

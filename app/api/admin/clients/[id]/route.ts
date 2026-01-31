@@ -49,7 +49,7 @@ export async function PUT(
     }
 
     // Check if slug already exists for another client
-    const existingSlug = await sql`SELECT id FROM clients WHERE slug = ${slug} AND id != ${id}`
+    const existingSlug = await sql`SELECT id FROM clients WHERE slug = ${slug} AND id <> ${id}`
     if (existingSlug.length > 0) {
       return NextResponse.json(
         { error: "Ja existe outro cliente com esse slug" },
